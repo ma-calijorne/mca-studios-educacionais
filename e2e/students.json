@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "students": [
+    {
+      "id": "e2e-student",
+      "name": "Aluno de Teste",
+      "ra": "TESTE001",
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}

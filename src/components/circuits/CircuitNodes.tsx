@@ -32,10 +32,43 @@ function InputHandles({ count }: { count: number }) {
       id={`in-${index}`}
       type="target"
       position={Position.Left}
-      style={{ top: count === 1 ? '50%' : `${35 + index * 30}%` }}
+      style={{ top: count === 1 ? '42px' : `${28 + index * 28}px` }}
       aria-label={`Entrada ${index + 1}`}
     />
   ))}</>
+}
+
+export function LogicGateSymbol({ gate, compact = false }: { gate: GateKind; compact?: boolean }) {
+  const baseGate = gate === 'NAND' ? 'AND' : gate === 'NOR' ? 'OR' : gate === 'XNOR' ? 'XOR' : gate
+  const inverted = gate === 'NOT' || gate === 'NAND' || gate === 'NOR' || gate === 'XNOR'
+  const binary = gate !== 'NOT'
+  const outputTip = baseGate === 'NOT' ? 104 : 110
+  const bubbleCenter = baseGate === 'NOT' ? 112 : 118
+  const leadStart = inverted ? bubbleCenter + 7 : outputTip
+
+  return (
+    <svg
+      className={`circuit-gate-symbol${compact ? ' is-compact' : ''}`}
+      viewBox="0 0 140 84"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g className="circuit-gate-symbol__leads">
+        {binary ? <><path d="M 0 28 H 31" /><path d="M 0 56 H 31" /></> : <path d="M 0 42 H 26" />}
+        <path d={`M ${leadStart} 42 H 140`} />
+      </g>
+
+      {baseGate === 'AND' && <path className="circuit-gate-symbol__body" d="M 24 14 H 62 C 90 14 110 26 110 42 C 110 58 90 70 62 70 H 24 Z" />}
+      {(baseGate === 'OR' || baseGate === 'XOR') && (
+        <path className="circuit-gate-symbol__body" d="M 26 14 C 60 14 91 20 110 42 C 91 64 60 70 26 70 C 39 53 39 31 26 14 Z" />
+      )}
+      {baseGate === 'XOR' && <path className="circuit-gate-symbol__xor" d="M 17 14 C 30 31 30 53 17 70" />}
+      {baseGate === 'NOT' && <path className="circuit-gate-symbol__body" d="M 26 12 L 104 42 L 26 72 Z" />}
+      {inverted && <circle className="circuit-gate-symbol__bubble" cx={bubbleCenter} cy="42" r="6.5" />}
+
+      {!compact && <text className="circuit-gate-symbol__text" x={baseGate === 'NOT' ? 62 : 68} y="46">{gate}</text>}
+    </svg>
+  )
 }
 
 export function CircuitNodeView({ id, data, selected }: NodeProps<CircuitFlowNode>) {
@@ -83,9 +116,10 @@ export function CircuitNodeView({ id, data, selected }: NodeProps<CircuitFlowNod
   return (
     <div className={`circuit-node circuit-node--gate circuit-node--${gate.toLowerCase()} ${stateClass}${selected ? ' is-selected' : ''}`}>
       <InputHandles count={gateInputCount(gate)} />
-      <div className="circuit-gate-shape"><strong>{gate}</strong><span>{data.label}</span></div>
+      <LogicGateSymbol gate={gate} />
+      <span className="circuit-gate-caption">{data.label}</span>
       <span className="circuit-node__signal">{data.concealed ? '?' : data.signal ?? 'X'}</span>
-      <Handle id="out" type="source" position={Position.Right} aria-label="Saída" />
+      <Handle id="out" type="source" position={Position.Right} style={{ top: '42px' }} aria-label="Saída" />
     </div>
   )
 }

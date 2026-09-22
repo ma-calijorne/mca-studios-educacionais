@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Plus, RotateCcw, Sparkles, Trash2, Undo2 } from 'lucide-react'
 import type { Mode } from '../core/types'
 import { journalAction, useLearningStore } from '../core/store'
@@ -13,6 +13,70 @@ const presets: Record<Mode, { domain: string[]; codomain: string[]; pairs: Pair[
   explore: { domain: ['1', '2', '3'], codomain: ['2', '4', '6'], pairs: [{ from: '1', to: '2' }, { from: '2', to: '4' }, { from: '3', to: '6' }] },
   sandbox: { domain: ['x₁', 'x₂', 'x₃'], codomain: ['y₁', 'y₂', 'y₃'], pairs: [] },
   challenges: { domain: ['A', 'B', 'C'], codomain: ['1', '2', '3'], pairs: [{ from: 'A', to: '1' }, { from: 'B', to: '1' }, { from: 'C', to: '2' }] },
+}
+
+interface MappingConnection {
+  id: string
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+}
+
+function MappingBoard({ domain, codomain, pairs }: { domain: string[]; codomain: string[]; pairs: Pair[] }) {
+  const boardRef = useRef<HTMLDivElement>(null)
+  const domainRefs = useRef(new Map<string, HTMLDivElement>())
+  const codomainRefs = useRef(new Map<string, HTMLDivElement>())
+  const [connections, setConnections] = useState<MappingConnection[]>([])
+
+  const measureConnections = useCallback(() => {
+    const board = boardRef.current?.getBoundingClientRect()
+    if (!board) return
+    setConnections(pairs.flatMap((pair, index) => {
+      const source = domainRefs.current.get(pair.from)?.getBoundingClientRect()
+      const target = codomainRefs.current.get(pair.to)?.getBoundingClientRect()
+      if (!source || !target) return []
+      return [{
+        id: `${pair.from}-${pair.to}-${index}`,
+        startX: source.right - board.left,
+        startY: source.top + source.height / 2 - board.top,
+        endX: target.left - board.left,
+        endY: target.top + target.height / 2 - board.top,
+      }]
+    }))
+  }, [pairs])
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(measureConnections)
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureConnections)
+    const observed = [boardRef.current, ...domainRefs.current.values(), ...codomainRefs.current.values()].filter(Boolean) as Element[]
+    observed.forEach((element) => resizeObserver?.observe(element))
+    window.addEventListener('resize', measureConnections)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', measureConnections)
+    }
+  }, [codomain, domain, measureConnections])
+
+  return (
+    <div className="mapping-board" ref={boardRef}>
+      <svg className="mapping-lines" aria-hidden="true">
+        {connections.map((connection) => {
+          const reach = Math.max(36, (connection.endX - connection.startX) * .38)
+          return <path key={connection.id} d={`M ${connection.startX} ${connection.startY} C ${connection.startX + reach} ${connection.startY}, ${connection.endX - reach} ${connection.endY}, ${connection.endX} ${connection.endY}`} />
+        })}
+      </svg>
+      <div className="mapping-column mapping-column--left">
+        <span>DOMÍNIO</span>
+        {domain.map((item) => <div key={item} ref={(element) => { if (element) domainRefs.current.set(item, element); else domainRefs.current.delete(item) }}>{item}</div>)}
+      </div>
+      <div className="mapping-column mapping-column--right">
+        <span>CONTRADOMÍNIO</span>
+        {codomain.map((item) => <div key={item} ref={(element) => { if (element) codomainRefs.current.set(item, element); else codomainRefs.current.delete(item) }}>{item}</div>)}
+      </div>
+    </div>
+  )
 }
 
 export function FunctionsStudio({ mode }: { mode: Mode }) {
@@ -39,17 +103,9 @@ export function FunctionsStudio({ mode }: { mode: Mode }) {
   const reset = () => { setPairs(preset.pairs); setHistory([]); setPrediction(null); setRevealed(mode === 'explore' || mode === 'sandbox') }
   const submit = (value: boolean) => { setPrediction(value); setRevealed(true); markComplete(`functions-${mode}`); useLearningStore.getState().addJournal({ topic: 'functions', kind: 'prediction', message: `Previu ${value ? 'função' : 'não função'}.` }) }
 
-  const yAt = (index: number, count: number) => 16 + (index * 68) + (count === 1 ? 90 : 0)
   const stage = <div className="lab-card function-lab">
     <div className="lab-toolbar"><div><strong>Máquina de atribuições</strong><span>Domínio → Contradomínio</span></div><span>Imagem = {'{'}{analysis.image.join(', ')}{'}'}</span></div>
-    <div className="mapping-board">
-      <svg className="mapping-lines" viewBox="0 0 700 280" preserveAspectRatio="none" aria-hidden="true">{pairs.map((pair, index) => {
-        const fromIndex = preset.domain.indexOf(pair.from); const toIndex = preset.codomain.indexOf(pair.to)
-        return <path key={`${pair.from}-${pair.to}-${index}`} d={`M 205 ${yAt(fromIndex, preset.domain.length) + 19} C 310 ${yAt(fromIndex, preset.domain.length) + 19}, 390 ${yAt(toIndex, preset.codomain.length) + 19}, 495 ${yAt(toIndex, preset.codomain.length) + 19}`} />
-      })}</svg>
-      <div className="mapping-column mapping-column--left"><span>DOMÍNIO</span>{preset.domain.map((item, index) => <div key={item} style={{ top: yAt(index, preset.domain.length) }}>{item}</div>)}</div>
-      <div className="mapping-column mapping-column--right"><span>CONTRADOMÍNIO</span>{preset.codomain.map((item, index) => <div key={item} style={{ top: yAt(index, preset.codomain.length) }}>{item}</div>)}</div>
-    </div>
+    <MappingBoard domain={preset.domain} codomain={preset.codomain} pairs={pairs} />
     <div className="pair-composer"><label>Entrada<select value={from} onChange={(event) => setFrom(event.target.value)}>{preset.domain.map((item) => <option key={item}>{item}</option>)}</select></label><ArrowRight size={18} /><label>Saída<select value={to} onChange={(event) => setTo(event.target.value)}>{preset.codomain.map((item) => <option key={item}>{item}</option>)}</select></label><button className="button button--secondary" onClick={addPair}><Plus size={16} /> Conectar</button></div>
     <div className="pair-list"><span className="pair-list__label">f =</span>{pairs.length ? pairs.map((pair, index) => <span className="pair-chip" key={`${pair.from}-${pair.to}-${index}`}>({pair.from}, {pair.to})<button aria-label={`Remover ${pair.from} para ${pair.to}`} onClick={() => removePair(pair)}><Trash2 size={13} /></button></span>) : <span className="muted">Conecte cada entrada a uma saída.</span>}</div>
   </div>

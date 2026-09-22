@@ -42,6 +42,7 @@ import { PredictionPanel } from '../components/PredictionPanel'
 import { StudioScaffold } from '../components/StudioScaffold'
 import {
   CircuitNodeActionsContext,
+  LogicGateSymbol,
   circuitNodeTypes,
   type CircuitFlowNode,
   type CircuitNodeData,
@@ -536,7 +537,13 @@ export function DigitalCircuitsStudio({ mode }: { mode: Mode }) {
                     onClick={() => addPaletteItem(item)}
                     title={`Arraste ou clique para adicionar ${item.label}`}
                   >
-                    <GripVertical size={13} /><span>{item.kind === 'input' ? '⏻' : item.kind === 'constant' ? item.inputValue : item.kind === 'output' ? '◉' : item.gate}</span><strong>{item.label}</strong>
+                    <GripVertical size={13} />
+                    <span className="circuit-palette__glyph">
+                      {item.kind === 'gate' && item.gate
+                        ? <LogicGateSymbol gate={item.gate} compact />
+                        : item.kind === 'input' ? '⏻' : item.kind === 'constant' ? item.inputValue : '◉'}
+                    </span>
+                    <strong>{item.label}</strong>
                   </button>
                 ))}
               </div>

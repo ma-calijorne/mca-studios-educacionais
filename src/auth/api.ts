@@ -15,6 +15,14 @@ export interface Student {
   updatedAt: string
 }
 
+export interface LoginEvent {
+  id: string
+  studentId: string
+  name: string
+  ra: string
+  loggedAt: string
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -49,6 +57,10 @@ export async function logout() {
 
 export async function listStudents() {
   return request<{ students: Student[] }>('/api/admin/students')
+}
+
+export async function listLoginEvents(limit = 100) {
+  return request<{ events: LoginEvent[] }>(`/api/admin/login-events?limit=${encodeURIComponent(limit)}`)
 }
 
 export async function createStudent(input: Pick<Student, 'name' | 'ra' | 'active'>) {

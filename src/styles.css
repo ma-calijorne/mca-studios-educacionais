@@ -583,7 +583,7 @@ select, input[type="text"], input[type="number"] { min-height: 38px; border: 1px
 .admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 30px; margin-bottom: 28px; }
 .admin-heading h1 { margin: 8px 0 7px; font-size: clamp(1.8rem, 3vw, 2.55rem); letter-spacing: -.04em; }
 .admin-heading p { margin: 0; color: var(--muted); font-size: .88rem; }
-.admin-stats { display: flex; gap: 10px; }
+.admin-stats { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .admin-stats > div { min-width: 135px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; color: var(--blue); background: white; }
 .admin-stats span { display: grid; color: var(--muted); font-size: .66rem; }
 .admin-stats strong { color: var(--ink); font-size: 1.1rem; }
@@ -631,6 +631,15 @@ select, input[type="text"], input[type="number"] { min-height: 38px; border: 1px
 .admin-empty { min-height: 310px; display: grid; place-content: center; justify-items: center; gap: 7px; padding: 30px; color: #8a97a8; text-align: center; }
 .admin-empty strong { color: #3f4d61; font-size: .85rem; }
 .admin-empty span { font-size: .72rem; }
+.admin-access-card { margin-top: 18px; }
+.admin-access-card .admin-list-toolbar { min-height: 66px; }
+.admin-refresh { min-height: 36px; }
+.admin-refresh:disabled { opacity: .65; cursor: wait; }
+.admin-access-empty { min-height: 180px; }
+.admin-access-error { margin: 16px 18px; padding: 11px 13px; border: 1px solid #efb3ae; border-radius: 9px; color: #95231b; background: #fff2f1; font-size: .76rem; }
+.admin-access-table time { color: #41516a; font-variant-numeric: tabular-nums; }
+.is-spinning { animation: admin-spin .9s linear infinite; }
+@keyframes admin-spin { to { transform: rotate(360deg); } }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 .app-shell.is-projector { grid-template-columns: 0 minmax(0, 1fr); }

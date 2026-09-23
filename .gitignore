@@ -16,3 +16,4 @@ test-results/
 coverage/
 *.tsbuildinfo
 server/data/students.local.json
+server/data/login-events.local.json

@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { ArrowLeft, Check, LogOut, Pencil, Plus, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react'
+import { ArrowLeft, Check, Clock3, LogOut, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { createStudent, deleteStudent, listStudents, updateStudent, type Student } from './api'
+import { createStudent, deleteStudent, listLoginEvents, listStudents, updateStudent, type LoginEvent, type Student } from './api'
 
 interface AdminPageProps {
   onLogout: () => Promise<void>
 }
 
 const emptyForm = { name: '', ra: '', active: true }
+const accessDateFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'America/Sao_Paulo' })
+const accessTimeFormatter = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'medium', timeZone: 'America/Sao_Paulo' })
 
 export function AdminPage({ onLogout }: AdminPageProps) {
   const [students, setStudents] = useState<Student[]>([])
+  const [loginEvents, setLoginEvents] = useState<LoginEvent[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editing, setEditing] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [eventsLoading, setEventsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [eventsError, setEventsError] = useState('')
 
-  async function refresh() {
+  async function refreshStudents() {
     setLoading(true)
     try {
       const result = await listStudents()
@@ -31,7 +36,23 @@ export function AdminPage({ onLogout }: AdminPageProps) {
     }
   }
 
-  useEffect(() => { void refresh() }, [])
+  async function refreshLoginEvents() {
+    setEventsLoading(true)
+    try {
+      const result = await listLoginEvents(100)
+      setLoginEvents(result.events)
+      setEventsError('')
+    } catch (caught) {
+      setEventsError(caught instanceof Error ? caught.message : 'Não foi possível carregar o histórico de acessos.')
+    } finally {
+      setEventsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshStudents()
+    void refreshLoginEvents()
+  }, [])
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('pt-BR')
@@ -59,7 +80,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
       if (editing) await updateStudent(editing, form)
       else await createStudent(form)
       resetForm()
-      await refresh()
+      await refreshStudents()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível salvar o aluno.')
     } finally {
@@ -71,7 +92,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
     setError('')
     try {
       await updateStudent(student.id, { active: !student.active })
-      await refresh()
+      await refreshStudents()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível alterar o acesso.')
     }
@@ -83,7 +104,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
     try {
       await deleteStudent(student.id)
       if (editing === student.id) resetForm()
-      await refresh()
+      await refreshStudents()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível remover o aluno.')
     }
@@ -114,6 +135,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
           <div className="admin-stats">
             <div><Users size={20} /><span><strong>{students.length}</strong> cadastrados</span></div>
             <div><Check size={20} /><span><strong>{activeCount}</strong> ativos</span></div>
+            <div><Clock3 size={20} /><span><strong>{loginEvents.length}</strong> acessos recentes</span></div>
           </div>
         </section>
 
@@ -158,6 +180,38 @@ export function AdminPage({ onLogout }: AdminPageProps) {
               </div>
             )}
           </section>
+        </section>
+
+        <section className="admin-list-card admin-access-card">
+          <div className="admin-list-toolbar">
+            <div><strong>Acessos recentes</strong><span>Últimos 100 logins · horário de Brasília</span></div>
+            <button className="button button--ghost admin-refresh" disabled={eventsLoading} onClick={() => void refreshLoginEvents()} type="button">
+              <RefreshCw className={eventsLoading ? 'is-spinning' : ''} size={15} /> Atualizar
+            </button>
+          </div>
+
+          {eventsError ? <div className="admin-access-error" role="alert">{eventsError}</div> : eventsLoading ? (
+            <div className="admin-empty admin-access-empty">Carregando acessos…</div>
+          ) : loginEvents.length === 0 ? (
+            <div className="admin-empty admin-access-empty"><Clock3 size={34} /><strong>Nenhum acesso registrado</strong><span>Os logins dos alunos aparecerão aqui.</span></div>
+          ) : (
+            <div className="admin-table-wrap">
+              <table className="admin-table admin-access-table">
+                <thead><tr><th>Aluno</th><th>RA</th><th>Data</th><th>Hora</th></tr></thead>
+                <tbody>{loginEvents.map((event) => {
+                  const loggedAt = new Date(event.loggedAt)
+                  return (
+                    <tr key={event.id}>
+                      <td><span className="student-avatar">{event.name.slice(0, 1).toUpperCase()}</span><strong>{event.name}</strong></td>
+                      <td><code>{event.ra}</code></td>
+                      <td><time dateTime={event.loggedAt}>{accessDateFormatter.format(loggedAt)}</time></td>
+                      <td><time dateTime={event.loggedAt}>{accessTimeFormatter.format(loggedAt)}</time></td>
+                    </tr>
+                  )
+                })}</tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </main>

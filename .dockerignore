@@ -12,3 +12,4 @@ infra/*.tfstate*
 work
 outputs
 *.log
+server/data/*.local.json

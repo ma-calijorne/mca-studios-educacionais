@@ -2,6 +2,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
 import helmet from 'helmet'
+import { createLoginEventStore } from './login-event-store.mjs'
 import { createStudentStore, validateRa } from './student-store.mjs'
 import { expiredSessionCookie, parseCookies, safeEqual, sessionCookie, signSession, verifySession } from './session.mjs'
 
@@ -18,6 +19,11 @@ const store = createStudentStore({
   bucketName: process.env.STUDENTS_BUCKET,
   objectName: process.env.STUDENTS_OBJECT ?? 'students.json',
   localFile: process.env.STUDENTS_FILE,
+})
+const loginEvents = createLoginEventStore({
+  bucketName: process.env.STUDENTS_BUCKET,
+  prefix: process.env.LOGIN_EVENTS_PREFIX ?? 'login-events',
+  localFile: process.env.LOGIN_EVENTS_FILE,
 })
 
 const app = express()
@@ -84,6 +90,11 @@ app.post('/api/auth/student', loginRateLimit, async (request, response, next) =>
     if (!validateRa(request.body?.ra)) return response.status(401).json({ error: 'RA não encontrada ou inativa.' })
     const student = await store.findActiveByRa(request.body.ra)
     if (!student) return response.status(401).json({ error: 'RA não encontrada ou inativa.' })
+    try {
+      await loginEvents.record(student)
+    } catch (error) {
+      console.error(JSON.stringify({ severity: 'WARNING', message: 'Não foi possível registrar o acesso do aluno.', code: error.code }))
+    }
     const maxAge = 12 * 60 * 60
     const token = signSession({ sub: student.id, name: student.name, ra: student.ra, role: 'student' }, sessionSecret, maxAge)
     response.set('Set-Cookie', sessionCookie(token, maxAge, production))
@@ -110,6 +121,14 @@ app.post('/api/logout', (_request, response) => {
 app.get('/api/admin/students', requireAdmin, async (_request, response, next) => {
   try {
     response.json({ students: await store.list() })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/admin/login-events', requireAdmin, async (request, response, next) => {
+  try {
+    response.json({ events: await loginEvents.list(request.query.limit) })
   } catch (error) {
     next(error)
   }

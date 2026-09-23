@@ -38,12 +38,13 @@ Para abrir o guia de um estúdio, substitua o modo por `how-to`. Exemplo: `/coun
 - Login de alunos exclusivamente por RA, sem senha.
 - Validação de RA cadastrada e ativa.
 - Área administrativa protegida por chave para cadastrar, editar, ativar, desativar e excluir alunos.
+- Histórico administrativo dos 100 acessos mais recentes, com aluno, RA, data e hora de Brasília.
 - Nove experiências interativas responsivas.
 - Histórico pedagógico de previsões, ações e descobertas.
 - Registro local do progresso do aluno no navegador.
 - Modo projetor para uso em sala de aula.
 - Páginas de orientação específicas para cada estúdio.
-- Persistência do cadastro de alunos em arquivo JSON no Cloud Storage.
+- Persistência do cadastro e de eventos de login em JSON no Cloud Storage.
 - Interface adaptada para desktop e dispositivos móveis.
 
 ## Arquitetura
@@ -53,7 +54,7 @@ flowchart LR
     A[Aluno ou professor] -->|HTTPS| B[Cloud Run]
     B --> C[React + Vite]
     B --> D[API Express]
-    D --> E[(Cloud Storage\nstudents.json)]
+    D --> E[(Cloud Storage\nstudents.json + login-events/*.json)]
     D --> F[Secret Manager]
     G[Terraform local] --> H[Artifact Registry]
     G --> B
@@ -68,8 +69,9 @@ O contêiner atende tanto a aplicação React quanto a API Express. No ambiente 
 1. O aluno informa a RA.
 2. A API normaliza a RA e consulta `students.json`.
 3. Apenas uma RA existente e ativa recebe uma sessão assinada.
-4. A sessão é armazenada em cookie `HttpOnly`, `SameSite=Lax` e, em produção, `Secure`.
-5. A área administrativa usa uma chave separada, mantida no Secret Manager.
+4. Cada login válido gera um evento JSON imutável no prefixo `login-events/`.
+5. A sessão é armazenada em cookie `HttpOnly`, `SameSite=Lax` e, em produção, `Secure`.
+6. A área administrativa usa uma chave separada, mantida no Secret Manager.
 
 As tentativas de login recebem limitação por endereço de origem. As rotas administrativas também validam a função presente na sessão.
 
@@ -148,6 +150,7 @@ PORT=8080 \
 SESSION_SECRET='troque-esta-chave-local' \
 ADMIN_KEY='admin-local' \
 STUDENTS_FILE='server/data/students.local.json' \
+LOGIN_EVENTS_FILE='server/data/login-events.local.json' \
 npm start
 ```
 
@@ -157,7 +160,7 @@ Acesse:
 - Administração: [http://127.0.0.1:8080/admin](http://127.0.0.1:8080/admin)
 - Saúde do serviço: [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health)
 
-Use a chave definida em `ADMIN_KEY` para entrar na administração e cadastrar uma RA de teste. O arquivo local de alunos é criado automaticamente e não é versionado.
+Use a chave definida em `ADMIN_KEY` para entrar na administração e cadastrar uma RA de teste. Os arquivos locais de alunos e acessos são criados automaticamente e não são versionados.
 
 Para trabalhar apenas na interface com recarga automática:
 
@@ -178,6 +181,8 @@ Nesse modo, o Vite fica disponível em `http://127.0.0.1:5173`; os fluxos que de
 | `STUDENTS_BUCKET` | Sim no GCP | Bucket que contém o cadastro de alunos. |
 | `STUDENTS_OBJECT` | Não | Nome do objeto; padrão `students.json`. |
 | `STUDENTS_FILE` | Não | Alternativa local ao Cloud Storage. |
+| `LOGIN_EVENTS_PREFIX` | Não | Prefixo dos eventos JSON no bucket; padrão `login-events`. |
+| `LOGIN_EVENTS_FILE` | Não | Alternativa local para o histórico de acessos. |
 
 Nunca grave valores reais de `SESSION_SECRET`, `ADMIN_KEY`, credenciais do Google Cloud ou arquivos de estado do Terraform no Git.
 
@@ -235,6 +240,7 @@ A infraestrutura padrão utiliza o projeto `prj-box-crossfit` e a região `south
 - Conta de serviço com privilégios mínimos.
 - Bucket privado, versionado e protegido contra acesso público.
 - Objeto `students.json` inicial.
+- Eventos imutáveis em `login-events/AAAA/MM/DD/*.json`, criados a cada login válido.
 - Segredos de administração e sessão no Secret Manager.
 - Permissões IAM entre o serviço, os segredos e o bucket.
 
@@ -267,7 +273,9 @@ Os arquivos `terraform.tfstate`, planos, cache do Terraform e credenciais locais
 
 ## Persistência e privacidade
 
-- O Cloud Storage armazena somente nome, RA, estado ativo e metadados técnicos do cadastro.
+- O Cloud Storage armazena o cadastro e, para cada login válido, nome, RA, identificador do aluno e instante do acesso.
+- O histórico não registra IP, navegador, localização ou tentativas inválidas de login.
+- Os horários são persistidos em UTC e apresentados na administração no fuso `America/Sao_Paulo`.
 - O progresso pedagógico permanece no navegador do aluno.
 - O bucket usa versionamento e prevenção de acesso público.
 - O Terraform não sobrescreve `students.json` depois da criação inicial.

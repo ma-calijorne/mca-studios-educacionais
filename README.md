@@ -4,6 +4,10 @@ Plataforma interativa para o ensino de **Matemática Computacional**, organizada
 
 Aplicação publicada: [matematica-computacional-qaohg26rla-rj.a.run.app](https://matematica-computacional-qaohg26rla-rj.a.run.app/)
 
+## Documentação
+
+- [Blueprint — O Último Axioma: Os Sete Selos do Paradoxo](docs/o-ultimo-axioma-blueprint.md)
+
 ## Visão do projeto
 
 O MCA transforma conceitos abstratos em experiências manipuláveis. Em vez de apenas apresentar definições, cada estúdio permite que o aluno construa exemplos, altere parâmetros, formule uma previsão, observe os resultados e registre descobertas.

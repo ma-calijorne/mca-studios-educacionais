@@ -4,7 +4,7 @@ O Terraform habilita as APIs necessárias, cria o Artifact Registry, constrói e
 
 Além da aplicação, a infraestrutura cria:
 
-- um bucket privado e versionado para `students.json` e os eventos JSON em `login-events/`;
+- um bucket privado e versionado para `students.json`, eventos em `login-events/` e o snapshot `game/o-ultimo-axioma.sqlite`;
 - uma conta de serviço com acesso apenas aos objetos desse bucket;
 - uma chave administrativa e uma chave de sessão geradas automaticamente;
 - dois secrets no Secret Manager, consumidos pela revisão do Cloud Run.
@@ -30,4 +30,6 @@ A área de administração fica em `terraform output -raw admin_url`. Para consu
 printf '%s\n' "$(terraform output -raw admin_access_key)"
 ```
 
-O serviço usa escala de 0 a 3 instâncias, 1 vCPU e 512 MiB. O progresso pedagógico continua salvo no navegador. O cadastro fica em `students.json`; cada login válido cria um objeto imutável em `login-events/AAAA/MM/DD/`, evitando conflito entre acessos simultâneos. A administração mostra os 100 eventos mais recentes no horário de Brasília.
+O serviço usa escala de 0 a 1 instância, 1 vCPU e 512 MiB. O limite de uma instância é obrigatório porque o evento integrador usa SQLite local sincronizado com o GCS. O contêiner restaura o snapshot ao iniciar, salva após cada transação relevante e tenta um último backup no `SIGTERM`.
+
+O progresso dos estúdios continua salvo no navegador. O cadastro fica em `students.json`; cada login válido cria um objeto imutável em `login-events/AAAA/MM/DD/`, evitando conflito entre acessos simultâneos. A administração mostra os 100 eventos mais recentes no horário de Brasília.

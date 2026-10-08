@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { ArrowLeft, Check, Clock3, LogOut, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react'
+import { ArrowLeft, Check, Clock3, Gamepad2, KeyRound, LogOut, Pencil, Plus, RefreshCw, RotateCcw, Search, ShieldCheck, Sparkles, Trash2, Trophy, Users, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { createGameSession, getGameAdmin, setGameAccess } from '../game/api'
+import type { GameAdminOverview } from '../game/types'
 import { createStudent, deleteStudent, listLoginEvents, listStudents, updateStudent, type LoginEvent, type Student } from './api'
 
 interface AdminPageProps {
@@ -22,6 +24,10 @@ export function AdminPage({ onLogout }: AdminPageProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [eventsError, setEventsError] = useState('')
+  const [game, setGame] = useState<GameAdminOverview | null>(null)
+  const [gameLoading, setGameLoading] = useState(true)
+  const [gameSaving, setGameSaving] = useState(false)
+  const [gameError, setGameError] = useState('')
 
   async function refreshStudents() {
     setLoading(true)
@@ -49,10 +55,53 @@ export function AdminPage({ onLogout }: AdminPageProps) {
     }
   }
 
+  async function refreshGame(silent = false) {
+    if (!silent) setGameLoading(true)
+    try {
+      setGame(await getGameAdmin())
+      setGameError('')
+    } catch (caught) {
+      setGameError(caught instanceof Error ? caught.message : 'Não foi possível carregar a expedição.')
+    } finally {
+      if (!silent) setGameLoading(false)
+    }
+  }
+
   useEffect(() => {
     void refreshStudents()
     void refreshLoginEvents()
+    void refreshGame()
+    const gameTimer = window.setInterval(() => void refreshGame(true), 8000)
+    return () => window.clearInterval(gameTimer)
   }, [])
+
+  async function toggleGame() {
+    if (!game || gameSaving) return
+    setGameSaving(true)
+    setGameError('')
+    try {
+      await setGameAccess(!game.access.enabled)
+      await refreshGame()
+    } catch (caught) {
+      setGameError(caught instanceof Error ? caught.message : 'Não foi possível alterar o acesso ao jogo.')
+    } finally {
+      setGameSaving(false)
+    }
+  }
+
+  async function newGameSession() {
+    if (!window.confirm('Iniciar uma nova expedição? O placar atual será arquivado e as equipes precisarão criar novos códigos.')) return
+    setGameSaving(true)
+    setGameError('')
+    try {
+      await createGameSession()
+      await refreshGame()
+    } catch (caught) {
+      setGameError(caught instanceof Error ? caught.message : 'Não foi possível iniciar uma nova expedição.')
+    } finally {
+      setGameSaving(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('pt-BR')
@@ -129,8 +178,8 @@ export function AdminPage({ onLogout }: AdminPageProps) {
         <section className="admin-heading">
           <div>
             <span className="eyebrow"><ShieldCheck size={14} /> ÁREA DO PROFESSOR</span>
-            <h1>Alunos e acessos</h1>
-            <p>Cadastre a turma, corrija dados e libere ou suspenda o acesso por RA.</p>
+            <h1>Turma e experiências</h1>
+            <p>Gerencie as RAs, acompanhe acessos e controle a expedição integradora.</p>
           </div>
           <div className="admin-stats">
             <div><Users size={20} /><span><strong>{students.length}</strong> cadastrados</span></div>
@@ -140,6 +189,27 @@ export function AdminPage({ onLogout }: AdminPageProps) {
         </section>
 
         {error && <div className="admin-alert" role="alert">{error}</div>}
+
+        <section className={`admin-game-card${game?.access.enabled ? ' is-live' : ''}`}>
+          <div className="admin-game-card__intro">
+            <div className="admin-game-card__icon"><Gamepad2 size={24} /></div>
+            <div><span>EVENTO INTEGRADOR</span><h2>O Último Axioma</h2><p>{game?.access.enabled ? 'A passagem está aberta para todos os alunos autenticados.' : 'O item aparece no menu do aluno, mas permanece bloqueado.'}</p></div>
+          </div>
+          <div className="admin-game-card__control">
+            <span>{game?.access.enabled ? 'ACESSO LIBERADO' : 'ACESSO BLOQUEADO'}</span>
+            <button aria-checked={Boolean(game?.access.enabled)} aria-label="Liberar acesso ao jogo" className={`game-access-toggle${game?.access.enabled ? ' is-on' : ''}`} disabled={gameLoading || gameSaving} onClick={() => void toggleGame()} role="switch" type="button"><i /><b>{game?.access.enabled ? 'Ligado' : 'Desligado'}</b></button>
+          </div>
+          <div className="admin-game-card__session">
+            <span><KeyRound size={15} /><b>{game?.access.session?.title ?? 'Nenhuma expedição criada'}</b></span>
+            <span><Users size={15} />{game?.teams.length ?? 0} equipes</span>
+            <span><Trophy size={15} />{game?.teams[0]?.score ?? 0} pontos na liderança</span>
+            <button className="button button--ghost" disabled={gameLoading || gameSaving} onClick={() => void newGameSession()} type="button"><RotateCcw size={14} /> Nova expedição</button>
+          </div>
+          {gameError && <div className="admin-game-card__error" role="alert">{gameError}</div>}
+          {game && game.teams.length > 0 && <div className="admin-game-teams">
+            {game.teams.map((team, index) => <div key={team.id}><b>{index + 1}</b><span><strong>{team.name}</strong><small>{team.memberCount} integrante{team.memberCount === 1 ? '' : 's'} · código {team.code}</small></span><em>Selo {team.currentStage}/7</em><strong>{team.score} pts</strong>{team.completedAt ? <Check size={16} /> : <Sparkles size={16} />}</div>)}
+          </div>}
+        </section>
 
         <section className="admin-grid">
           <form className="admin-form-card" onSubmit={handleSave}>

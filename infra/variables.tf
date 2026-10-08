@@ -29,9 +29,14 @@ variable "min_instances" {
 }
 
 variable "max_instances" {
-  description = "Limite de escala para proteção de custo."
+  description = "Uma única instância protege a consistência do SQLite sincronizado com o GCS."
   type        = number
-  default     = 3
+  default     = 1
+
+  validation {
+    condition     = var.max_instances == 1
+    error_message = "O jogo usa SQLite local sincronizado com o GCS e exige max_instances = 1."
+  }
 }
 
 variable "gcloud_bin" {

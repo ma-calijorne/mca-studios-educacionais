@@ -7,6 +7,8 @@ Aplicação publicada: [matematica-computacional-qaohg26rla-rj.a.run.app](https:
 ## Documentação
 
 - [Blueprint — O Último Axioma: Os Sete Selos do Paradoxo](docs/o-ultimo-axioma-blueprint.md)
+- [Apresentação projetada — O Último Axioma](artifacts/O_Ultimo_Axioma_Apresentacao.pptx)
+- [Kit de impressão — O Último Axioma](artifacts/O_Ultimo_Axioma_Kit_Impressao.pdf)
 
 ## Visão do projeto
 
@@ -44,6 +46,10 @@ Para abrir o guia de um estúdio, substitua o modo por `how-to`. Exemplo: `/coun
 - Área administrativa protegida por chave para cadastrar, editar, ativar, desativar e excluir alunos.
 - Histórico administrativo dos 100 acessos mais recentes, com aluno, RA, data e hora de Brasília.
 - Nove experiências interativas responsivas.
+- Evento integrador **O Último Axioma**, com sete selos sequenciais, equipes, pistas, placar e câmara final.
+- Liberação global do jogo por um único toggle na administração; o item permanece visível e bloqueado para os alunos enquanto estiver desligado.
+- Respostas e validadores do jogo executados exclusivamente no servidor.
+- Estado compartilhado da expedição em SQLite, com restauração e snapshots no Cloud Storage.
 - Histórico pedagógico de previsões, ações e descobertas.
 - Registro local do progresso do aluno no navegador.
 - Modo projetor para uso em sala de aula.
@@ -58,15 +64,30 @@ flowchart LR
     A[Aluno ou professor] -->|HTTPS| B[Cloud Run]
     B --> C[React + Vite]
     B --> D[API Express]
-    D --> E[(Cloud Storage\nstudents.json + login-events/*.json)]
-    D --> F[Secret Manager]
-    G[Terraform local] --> H[Artifact Registry]
-    G --> B
-    G --> E
-    G --> F
+    D --> E[(SQLite local\nequipes + tentativas + placar)]
+    E -->|snapshot após escrita e no encerramento| F[(Cloud Storage\ngame/o-ultimo-axioma.sqlite)]
+    D --> G[(Cloud Storage\nstudents.json + login-events/*.json)]
+    D --> H[Secret Manager]
+    I[Terraform local] --> J[Artifact Registry]
+    I --> B
+    I --> F
+    I --> G
+    I --> H
 ```
 
 O contêiner atende tanto a aplicação React quanto a API Express. No ambiente de produção, a identidade de serviço do Cloud Run acessa o Cloud Storage e o Secret Manager sem chaves de conta de serviço armazenadas no repositório.
+
+O jogo usa uma única instância máxima do Cloud Run. Ao iniciar, a instância restaura o SQLite mais recente do GCS. Cada mutação relevante gera um snapshot consistente no bucket; o processo também tenta um último snapshot ao receber `SIGTERM`. Essa combinação evita depender apenas do desligamento normal do Cloud Run e mantém o custo ocioso em zero com `min_instances = 0`.
+
+### Fluxo do evento integrador
+
+1. O professor entra em `/admin` e liga o toggle **O Último Axioma**.
+2. Se não houver uma expedição ativa, o servidor cria uma automaticamente.
+3. O aluno passa a acessar o item já presente no menu.
+4. Uma pessoa cria a equipe e compartilha o código de seis caracteres.
+5. Cada selo exige previsão, resposta e quatro evidências.
+6. Respostas corretas liberam a runa e o próximo selo; pistas consomem fragmentos.
+7. As sete runas liberam a chave final e os 200 pontos de encerramento.
 
 ### Fluxo de autenticação
 
@@ -95,6 +116,7 @@ As tentativas de login recebem limitação por endereço de origem. As rotas adm
 ### Servidor e qualidade
 
 - Node.js 22 e Express 5
+- SQLite nativo do Node.js para o estado do evento integrador
 - Helmet
 - Zod
 - Vitest e Testing Library
@@ -123,6 +145,7 @@ As tentativas de login recebem limitação por endereço de origem. As rotas adm
 │   ├── components/         # componentes compartilhados e páginas HowTo
 │   ├── core/               # tipos, estado e contrato pedagógico
 │   ├── engines/            # motores matemáticos testáveis
+│   ├── game/               # experiência, API cliente e contratos do jogo
 │   ├── studios/            # implementação dos nove estúdios
 │   └── test/               # configuração de testes
 ├── Dockerfile
@@ -155,6 +178,7 @@ SESSION_SECRET='troque-esta-chave-local' \
 ADMIN_KEY='admin-local' \
 STUDENTS_FILE='server/data/students.local.json' \
 LOGIN_EVENTS_FILE='server/data/login-events.local.json' \
+GAME_DB_FILE='server/data/game.local.sqlite' \
 npm start
 ```
 
@@ -187,6 +211,10 @@ Nesse modo, o Vite fica disponível em `http://127.0.0.1:5173`; os fluxos que de
 | `STUDENTS_FILE` | Não | Alternativa local ao Cloud Storage. |
 | `LOGIN_EVENTS_PREFIX` | Não | Prefixo dos eventos JSON no bucket; padrão `login-events`. |
 | `LOGIN_EVENTS_FILE` | Não | Alternativa local para o histórico de acessos. |
+| `GAME_DB_BUCKET` | Sim no GCP | Bucket do snapshot SQLite; por padrão reutiliza `STUDENTS_BUCKET`. |
+| `GAME_DB_OBJECT` | Não | Objeto do snapshot; padrão `game/o-ultimo-axioma.sqlite`. |
+| `GAME_DB_FILE` | Não | Caminho do SQLite local; no Cloud Run usa `/tmp/mca-o-ultimo-axioma.sqlite`. |
+| `LOGIN_RATE_LIMIT_MAX` | Não | Limite de tentativas por janela; padrão `15`. Usado apenas com valor maior nos testes E2E. |
 
 Nunca grave valores reais de `SESSION_SECRET`, `ADMIN_KEY`, credenciais do Google Cloud ou arquivos de estado do Terraform no Git.
 
@@ -202,6 +230,8 @@ Nunca grave valores reais de `SESSION_SECRET`, `ADMIN_KEY`, credenciais do Googl
 | `npm run test:watch` | Executa testes em modo interativo. |
 | `npm run test:e2e` | Executa as jornadas Playwright. |
 | `npm run typecheck` | Valida os tipos TypeScript. |
+
+Os arquivos em `scripts/build-o-ultimo-axioma-*` preservam a geração reproduzível da apresentação e do kit de impressão. A apresentação usa o runtime de artefatos do Codex; o PDF usa ReportLab.
 
 ## Testes
 
@@ -229,6 +259,7 @@ docker run --rm -p 8080:8080 \
   -e SESSION_SECRET='troque-esta-chave-local' \
   -e ADMIN_KEY='admin-local' \
   -e STUDENTS_FILE='/app/server/data/students.local.json' \
+  -e GAME_DB_FILE='/tmp/mca-o-ultimo-axioma.sqlite' \
   mca-studios-educacionais
 ```
 
@@ -245,6 +276,7 @@ A infraestrutura padrão utiliza o projeto `prj-box-crossfit` e a região `south
 - Bucket privado, versionado e protegido contra acesso público.
 - Objeto `students.json` inicial.
 - Eventos imutáveis em `login-events/AAAA/MM/DD/*.json`, criados a cada login válido.
+- Snapshot SQLite versionado em `game/o-ultimo-axioma.sqlite`.
 - Segredos de administração e sessão no Secret Manager.
 - Permissões IAM entre o serviço, os segredos e o bucket.
 
@@ -281,6 +313,9 @@ Os arquivos `terraform.tfstate`, planos, cache do Terraform e credenciais locais
 - O histórico não registra IP, navegador, localização ou tentativas inválidas de login.
 - Os horários são persistidos em UTC e apresentados na administração no fuso `America/Sao_Paulo`.
 - O progresso pedagógico permanece no navegador do aluno.
+- O estado do evento integrador permanece no SQLite e recebe backup no GCS após cada transação relevante.
+- A inicialização restaura o snapshot mais recente antes de aceitar requisições.
+- O serviço usa no máximo uma instância para impedir duas cópias concorrentes do SQLite.
 - O bucket usa versionamento e prevenção de acesso público.
 - O Terraform não sobrescreve `students.json` depois da criação inicial.
 - Nenhuma chave administrativa deve ser colocada no código, no README ou em commits.
@@ -299,4 +334,4 @@ Para manter o contrato comum da experiência:
 
 ## Situação atual
 
-O projeto possui nove estúdios integrados, autenticação por RA, administração de alunos, documentação contextual e deploy automatizado por Terraform no Cloud Run.
+O projeto possui nove estúdios, autenticação por RA, administração de alunos, histórico de acessos e o evento integrador O Último Axioma. A experiência inclui toggle administrativo, sete missões digitais, equipes, pistas, placar, apresentação, kit de impressão e persistência SQLite com backup no GCS.

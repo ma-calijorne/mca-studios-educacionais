@@ -1,4 +1,5 @@
 node_modules/
+scripts/node_modules
 .npm-cache/
 dist/
 .DS_Store
@@ -14,6 +15,11 @@ crash.log
 playwright-report/
 test-results/
 coverage/
+.artifacts-build/
 *.tsbuildinfo
 server/data/students.local.json
 server/data/login-events.local.json
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite.snapshot

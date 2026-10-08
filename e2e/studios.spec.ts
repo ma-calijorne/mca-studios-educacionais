@@ -4,6 +4,7 @@ async function login(page: import('@playwright/test').Page) {
   await page.goto('/')
   await page.getByLabel('Registro Acadêmico (RA)').fill('TESTE001')
   await page.getByRole('button', { name: 'Entrar no laboratório' }).click()
+  await expect(page.getByRole('button', { name: 'Sair' })).toBeVisible()
 }
 
 const studios = [
@@ -53,7 +54,7 @@ test('prediction unlocks relation evidence', async ({ page }) => {
   await page.goto('/relations/learn')
   await page.getByRole('button', { name: 'Não' }).click()
   await page.getByRole('button', { name: 'Registrar e analisar' }).click()
-  await expect(page.getByText('Revisada pela evidência')).toBeVisible()
+  await expect(page.getByText('Confirmada')).toBeVisible()
   await expect(page.getByText('Falta Ana→Carla')).toBeVisible()
 })
 
@@ -90,4 +91,28 @@ test('counting studio turns a prediction into paths and a derivation', async ({ 
   await page.getByRole('tab', { name: 'Resultados' }).click()
   await expect(page.getByText('Azul · Jeans')).toBeVisible()
   await expect(page.getByText('Preta · Sarja')).toBeVisible()
+})
+
+test('teacher toggle controls the Last Axiom in navigation and on the protected route', async ({ page }) => {
+  await login(page)
+  await expect(page.getByText('Aguardando o professor')).toBeVisible()
+
+  await page.goto('/game')
+  await expect(page.getByRole('heading', { name: 'O Último Axioma aguarda o professor' })).toBeVisible()
+  await page.getByRole('button', { name: 'Sair' }).click()
+
+  await page.goto('/admin')
+  await page.getByLabel('Chave administrativa').fill('e2e-admin-key')
+  await page.getByRole('button', { name: 'Entrar na administração' }).click()
+  const gameToggle = page.getByRole('switch', { name: 'Liberar acesso ao jogo' })
+  await expect(gameToggle).toHaveAttribute('aria-checked', 'false')
+  await gameToggle.click()
+  await expect(gameToggle).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('button', { name: 'Sair' }).click()
+
+  await page.getByLabel('Registro Acadêmico (RA)').fill('TESTE001')
+  await page.getByRole('button', { name: 'Entrar no laboratório' }).click()
+  await page.getByRole('link', { name: /O Último Axioma/ }).click()
+  await expect(page.getByRole('heading', { name: 'O Último Axioma' })).toBeVisible()
+  await expect(page.getByText('Criar equipe')).toBeVisible()
 })

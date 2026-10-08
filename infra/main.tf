@@ -211,6 +211,21 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       env {
+        name  = "GAME_DB_BUCKET"
+        value = google_storage_bucket.students.name
+      }
+
+      env {
+        name  = "GAME_DB_OBJECT"
+        value = "game/o-ultimo-axioma.sqlite"
+      }
+
+      env {
+        name  = "GAME_DB_FILE"
+        value = "/tmp/mca-o-ultimo-axioma.sqlite"
+      }
+
+      env {
         name = "ADMIN_KEY"
         value_source {
           secret_key_ref {

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type CSSProperties } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { BookOpen, LogOut, Maximize2, MoonStar, PanelLeftClose, RotateCcw, ShieldCheck, UserRound } from 'lucide-react'
+import { BookOpen, KeyRound, LockKeyhole, LogOut, Maximize2, MoonStar, PanelLeftClose, RotateCcw, ShieldCheck, UserRound } from 'lucide-react'
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { modeLabels, topics, type Mode, type TopicId } from './core/types'
 import { useLearningStore } from './core/store'
@@ -8,6 +8,7 @@ import { AdminPage } from './auth/AdminPage'
 import { getSession, logout, type AuthUser } from './auth/api'
 import { LoginScreen } from './auth/LoginScreen'
 import { HowToPage } from './components/HowToPage'
+import { getGameAccess } from './game/api'
 
 const SetsStudio = lazy(() => import('./studios/SetsStudio').then((module) => ({ default: module.SetsStudio })))
 const RelationsStudio = lazy(() => import('./studios/RelationsStudio').then((module) => ({ default: module.RelationsStudio })))
@@ -18,6 +19,7 @@ const EquivalencesStudio = lazy(() => import('./studios/EquivalencesStudio').the
 const AlgorithmsStudio = lazy(() => import('./studios/AlgorithmsStudio').then((module) => ({ default: module.AlgorithmsStudio })))
 const DigitalCircuitsStudio = lazy(() => import('./studios/DigitalCircuitsStudio').then((module) => ({ default: module.DigitalCircuitsStudio })))
 const CountingStudio = lazy(() => import('./studios/CountingStudio').then((module) => ({ default: module.CountingStudio })))
+const GamePage = lazy(() => import('./game/GamePage').then((module) => ({ default: module.GamePage })))
 
 const modes = Object.keys(modeLabels) as Mode[]
 
@@ -46,12 +48,14 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [user, setUser] = useState<AuthUser | null>()
+  const [gameEnabled, setGameEnabled] = useState(false)
   const projector = useLearningStore((state) => state.projector)
   const toggleProjector = useLearningStore((state) => state.toggleProjector)
   const completed = useLearningStore((state) => state.completed)
   const [, topicId = 'relations', pathMode = 'learn'] = location.pathname.split('/')
   const mode = modes.includes(pathMode as Mode) ? pathMode as Mode : 'learn'
   const isHowTo = pathMode === 'how-to'
+  const isGame = location.pathname === '/game'
 
   useEffect(() => {
     document.documentElement.dataset.projector = String(projector)
@@ -65,9 +69,24 @@ function App() {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    if (user?.role !== 'student') {
+      setGameEnabled(false)
+      return () => { active = false }
+    }
+    const refreshAccess = () => void getGameAccess()
+      .then((access) => { if (active) setGameEnabled(access.enabled) })
+      .catch(() => { if (active) setGameEnabled(false) })
+    refreshAccess()
+    const timer = window.setInterval(refreshAccess, 8000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [user])
+
   async function handleLogout() {
     await logout().catch(() => undefined)
     setUser(null)
+    setGameEnabled(false)
     navigate('/', { replace: true })
   }
 
@@ -113,21 +132,34 @@ function App() {
                 <span><strong>{topic.shortTitle}</strong><small>{topic.description}</small></span>
               </NavLink>
             ))}
+            {gameEnabled ? (
+              <NavLink to="/game" className={({ isActive }) => `topic-link topic-link--game${isActive ? ' is-active' : ''}`}>
+                <span className="topic-link__icon" style={{ '--topic-accent': '#e8793f' } as CSSProperties}><KeyRound size={17} /></span>
+                <span><strong>O Último Axioma</strong><small>Evento integrador · sete selos</small></span>
+              </NavLink>
+            ) : (
+              <span aria-disabled="true" className="topic-link topic-link--game is-disabled" title="Aguardando liberação do professor">
+                <span className="topic-link__icon" style={{ '--topic-accent': '#7d8695' } as CSSProperties}><LockKeyhole size={16} /></span>
+                <span><strong>O Último Axioma</strong><small>Aguardando o professor</small></span>
+              </span>
+            )}
           </nav>
           <button className="topic-nav__reset" onClick={() => useLearningStore.getState().clearProgress()}><RotateCcw size={14} /> Limpar progresso local</button>
         </aside>
 
-        <div className="modebar">
-          <div className="modebar__topic">{topics.find((topic) => topic.id === topicId)?.title ?? 'Estúdio'}</div>
-          <nav aria-label="Modos de aprendizagem">
+        <div className={`modebar${isGame ? ' modebar--game' : ''}`}>
+          <div className="modebar__topic">{isGame ? 'Evento integrador · O Último Axioma' : topics.find((topic) => topic.id === topicId)?.title ?? 'Estúdio'}</div>
+          {!isGame && <nav aria-label="Modos de aprendizagem">
             {modes.map((item) => (
               <button key={item} className={!isHowTo && mode === item ? 'is-active' : ''} onClick={() => navigate(`/${topicId}/${item}`)}>{modeLabels[item]}</button>
             ))}
-          </nav>
+          </nav>}
+          {isGame && <span className="modebar__game-status"><KeyRound size={14} /> Expedição liberada</span>}
         </div>
 
         <div className="app-content">
           <Routes>
+            <Route path="/game" element={<Suspense fallback={<div className="studio-loading">Abrindo o arquivo do paradoxo…</div>}><GamePage /></Suspense>} />
             <Route path="/:topicId/how-to" element={<HowToPage />} />
             <Route path="/:topicId/:mode" element={<TopicPage />} />
             <Route path="*" element={<Navigate to="/relations/learn" replace />} />

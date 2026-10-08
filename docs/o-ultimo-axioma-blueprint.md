@@ -775,15 +775,17 @@ interface MissionAttempt {
 
 ## 15. Persistência e segurança
 
-### MVP no ambiente atual
+### Arquitetura implementada
 
-- definições das missões versionadas no código ou em JSON somente de leitura;
-- um snapshot JSON por equipe e sessão no Cloud Storage;
-- um objeto JSON imutável por evento;
-- controle de concorrência por `generation match` nos snapshots;
+- definições das missões versionadas no código e enviadas ao navegador sem o gabarito;
+- SQLite local na instância para sessões, equipes, integrantes, tentativas, pistas, eventos e placar;
+- restauração do snapshot `game/o-ultimo-axioma.sqlite` no Cloud Storage antes de o servidor aceitar requisições;
+- snapshot consistente por `VACUUM INTO` após cada transação relevante;
+- snapshot adicional quando o processo recebe `SIGTERM`;
+- controle de geração do objeto no GCS para impedir sobrescrita por uma cópia antiga;
+- apenas uma instância máxima no Cloud Run, com escala mínima zero;
 - respostas e validadores mantidos exclusivamente no servidor;
-- painel atualizado por consulta periódica de poucos segundos;
-- Cloud Run permanece sem estado local.
+- painel atualizado por consulta do estado da expedição.
 
 ### Evolução recomendada
 
@@ -994,19 +996,17 @@ As métricas apoiam o planejamento da aula seguinte. Elas não substituem a aval
 - Toda missão exigirá representação, resultado, teste e explicação.
 - O desafio final dependerá dos sete resultados.
 - A aplicação reutilizará os motores matemáticos existentes.
-- O MVP poderá usar JSON no Cloud Storage, com eventos imutáveis e snapshots protegidos contra concorrência.
+- O estado compartilhado usa SQLite local, com restauração e snapshots protegidos no Cloud Storage.
 - As respostas ficarão no servidor.
 - A experiência terá apresentação, kit imprimível e contingência offline.
 
-## 23. Próxima especificação
+## 23. Artefatos produzidos
 
-O próximo artefato deve ser o **storyboard de alta fidelidade do evento**, contendo:
-
-1. mapa de telas do estudante;
-2. console do professor;
-3. modo projetor;
-4. transições narrativas;
-5. estados de cada missão;
-6. mensagens de feedback;
-7. comportamento responsivo;
-8. direção visual e sonora.
+- experiência web responsiva para o aluno;
+- controle administrativo de acesso por toggle;
+- console de equipes e placar;
+- apresentação projetada com 28 lâminas;
+- kit de impressão A4 com 31 páginas;
+- gabarito reservado ao professor;
+- testes de conteúdo, progressão, autorização e jornada E2E;
+- infraestrutura Terraform para Cloud Run, GCS, Artifact Registry e Secret Manager.

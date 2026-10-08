@@ -7,6 +7,10 @@ dist
 node_modules
 playwright-report
 test-results
+.artifacts-build
+artifacts
+docs
+scripts
 infra/.terraform
 infra/*.tfstate*
 work
